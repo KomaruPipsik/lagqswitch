@@ -1,4 +1,4 @@
--- LocalScript: Ultimate Lag Switch by Pixie (Teleport Edition)
+-- LocalScript: Ultimate Lag Switch by Pixie (Safe Teleport Edition)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 1.0 -- Сделано ровно на 1 сек
+local lagDuration = 1.0
 
 -- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -60,36 +60,49 @@ local function performLag()
     local velocityBefore = hrp.AssemblyLinearVelocity
     local direction = velocityBefore.Unit
     
-    -- Если игрок почти не двигался, телепортируем туда, куда он смотрит
     if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
         direction = hrp.CFrame.LookVector
     end
     
     isLagging = true
     
-    -- "Замирание" (Останавливаем и фиксируем в воздухе)
+    -- "Замирание"
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     hrp.Anchored = true
     
-    -- Ждем ровно 1 секунду
     task.wait(lagDuration)
     
-    -- НАСТРОЙКА ДАЛЬНОСТИ ТЕЛЕПОРТА (Можешь менять эти цифры под себя)
-    local distanceForward = 35 -- На сколько стадов телепортировать прямо
-    local distanceUp = 25      -- На сколько стадов телепортировать вверх
+    -- НАСТРОЙКА ДАЛЬНОСТИ ТЕЛЕПОРТА
+    local distanceForward = 12 -- Уменьшено (раньше было 35)
+    local distanceUp = 35      -- Увеличено (раньше было 25)
     
-    -- Высчитываем новую позицию для телепорта
-    local teleportTargetPos = hrp.Position + (direction * distanceForward) + Vector3.new(0, distanceUp, 0)
+    -- Высчитываем желаемую позицию
+    local intendedPos = hrp.Position + (direction * distanceForward) + Vector3.new(0, distanceUp, 0)
     
-    -- Мгновенно меняем координаты персонажа
+    -- РЕЙКАСТ: Проверка на стены и потолки
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {char} -- Игнорировать самого персонажа
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local rayDirection = intendedPos - hrp.Position
+    local rayResult = workspace:Raycast(hrp.Position, rayDirection, rayParams)
+    
+    local teleportTargetPos
+    if rayResult then
+        -- Если луч врезался в текстуру, телепортируемся за 2.5 стада ДО стены
+        teleportTargetPos = rayResult.Position - (rayDirection.Unit * 2.5)
+    else
+        -- Если путь свободен, телепортируемся в конечную точку
+        teleportTargetPos = intendedPos
+    end
+    
+    -- Мгновенно меняем координаты
     hrp.CFrame = CFrame.new(teleportTargetPos, teleportTargetPos + direction)
     
-    -- Размораживаем персонажа
+    -- Размораживаем
     hrp.Anchored = false
-    
-    -- Даем небольшую скорость вперед после телепорта, чтобы плавно приземлиться
-    hrp.AssemblyLinearVelocity = (direction * 50) + Vector3.new(0, 20, 0)
+    hrp.AssemblyLinearVelocity = (direction * 30) + Vector3.new(0, 10, 0)
     
     isLagging = false
 end
