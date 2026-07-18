@@ -10,7 +10,7 @@ local bindKey = Enum.KeyCode.V
 local isBinding = false
 local lagDuration = 1.5
 
--- СОЗДАНИЕ GUI (Сделано красиво и минималистично)
+-- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "LagSwitchUI"
 ScreenGui.ResetOnSpawn = false
@@ -21,10 +21,10 @@ MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
+
 local UICorner = Instance.new("UICorner", MainFrame)
 UICorner.CornerRadius = UDim.new(0, 8)
 
--- Добавление тени (UIStroke)
 local Stroke = Instance.new("UIStroke", MainFrame)
 Stroke.Color = Color3.fromRGB(45, 45, 45)
 Stroke.Thickness = 2
@@ -54,30 +54,32 @@ local function performLag()
     local hum = char:FindFirstChild("Humanoid")
     if not hrp or not hum then return end
 
-    -- ПРОВЕРКА: Игрок должен быть на земле (FloorMaterial)
-    if hum.FloorMaterial == Enum.Material.Air then return end
-    
-    -- ПРОВЕРКА: Игрок должен двигаться
-    if hrp.AssemblyLinearVelocity.Magnitude < 1 then return end
+    -- Убрана проверка на землю — работает и в воздухе
+    -- Убрана проверка на движение — работает стоя
 
     local originalVel = hrp.AssemblyLinearVelocity
-    
-    -- САМ ЛАГ (Без задержек, мгновенно)
+
+    -- Телепортируем вверх и вперёд перед заморозкой
+    local lookDir = hrp.CFrame.LookVector
+    hrp.CFrame = hrp.CFrame + Vector3.new(0, 8, 0) + lookDir * 5
+
+    -- Замораживаем
     hrp.Anchored = true
     task.wait(lagDuration)
     hrp.Anchored = false
 
-    -- ОТТАЛКИВАНИЕ (Рандомизированное)
+    -- Отталкивание вверх и вперёд
     local randomMultiplier = math.random(90, 140) / 100
-    local pushForce = (originalVel * 0.8) + Vector3.new(0, 60, 0)
-    
+    local pushForce = (lookDir * 40) + Vector3.new(0, 50, 0)
     hrp.AssemblyLinearVelocity = pushForce * randomMultiplier
 end
 
 -- ВВОД
 UserInputService.InputBegan:Connect(function(input, gpe)
     if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+        if input.UserInputType == Enum.UserInputType.Keyboard
+            or input.UserInputType == Enum.UserInputType.MouseButton2
+            or input.UserInputType == Enum.UserInputType.MouseButton3 then
             bindKey = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
             BindBtn.Text = "KEY: " .. (input.KeyCode.Name or input.UserInputType.Name)
             isBinding = false
