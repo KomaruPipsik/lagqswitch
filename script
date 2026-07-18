@@ -1,13 +1,12 @@
--- LocalScript: Ultimate Lag Switch by Pixie
+-- LocalScript: Ultimate Lag Switch by Pixie (Updated)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 1.5
+local lagDuration = 1.0 -- Сокращено до 1 сек
 
 -- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -38,13 +37,6 @@ BindBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 BindBtn.TextColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
 
--- Фрейм для визуального лага
-local FreezeFrame = Instance.new("Frame", ScreenGui)
-FreezeFrame.Size = UDim2.new(1, 0, 1, 0)
-FreezeFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-FreezeFrame.BackgroundTransparency = 1
-FreezeFrame.Visible = true
-
 -- Мобильная кнопка
 local MobileBtn = Instance.new("TextButton", ScreenGui)
 MobileBtn.Text = "MENU"
@@ -60,25 +52,21 @@ local function performLag()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local velocityBefore = hrp.AssemblyLinearVelocity
-    if velocityBefore.Magnitude < 1 then return end
+    local direction = hrp.CFrame.LookVector -- Направление взгляда
     
-    -- Визуальный лаг
-    FreezeFrame.BackgroundTransparency = 0.3
-    
-    -- "Замирание"
+    -- 1. "Замирание" (останавливаем инерцию)
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     
-    task.wait(lagDuration)
+    task.wait(lagDuration) -- 1 секунда
     
-    FreezeFrame.BackgroundTransparency = 1
+    -- 2. МОЩНЫЙ ИМПУЛЬС (вперед и вверх)
+    -- Мы умножаем массу на силу, чтобы отбросить персонажа
+    local force = (direction * 500) + Vector3.new(0, 600, 0)
     
-    -- Агрессивный отлет (рандомизированный)
-    local randomJitter = Vector3.new(math.random(-25, 25), math.random(5, 40), math.random(-25, 25))
-    local pushVector = (velocityBefore.Unit * 120) + Vector3.new(0, 90, 0)
+    -- Добавляем случайность, как просил (каждый раз по-разному)
+    local randomJitter = Vector3.new(math.random(-50, 50), 0, math.random(-50, 50))
     
-    hrp.AssemblyLinearVelocity = pushVector + randomJitter
+    hrp:ApplyImpulse(force + randomJitter)
 end
 
 -- ВВОД
