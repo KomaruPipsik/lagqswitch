@@ -1,1 +1,97 @@
+-- LocalScript: Lag Switch by Pixie (All-in-one)
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
 
+-- Переменные состояния
+local lang = "EN"
+local bindKey = Enum.KeyCode.V
+local isBinding = false
+local isVisible = false
+
+-- Создание GUI (Создаем всё программно)
+local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+ScreenGui.Name = "LagSwitchUI"
+ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 250, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Visible = false
+Instance.new("UICorner", MainFrame)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(60, 60, 60)
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Text = "Lag Switch | by: Pixie"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+
+local BindBtn = Instance.new("TextButton", MainFrame)
+BindBtn.Text = "Click to set Bind"
+BindBtn.Size = UDim2.new(0.8, 0, 0, 40)
+BindBtn.Position = UDim2.new(0.1, 0, 0.3, 0)
+BindBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+BindBtn.TextColor3 = Color3.new(1, 1, 1)
+Instance.new("UICorner", BindBtn)
+
+local Hint = Instance.new("TextLabel", ScreenGui)
+Hint.Text = "Press LeftAlt to open | Mobile: use button"
+Hint.Size = UDim2.new(1, 0, 0, 30)
+Hint.Position = UDim2.new(0, 0, 0.9, 0)
+Hint.BackgroundTransparency = 1
+Hint.TextColor3 = Color3.new(1, 1, 1)
+
+-- Мобильная кнопка
+local MobileBtn = Instance.new("TextButton", ScreenGui)
+MobileBtn.Text = "MENU"
+MobileBtn.Size = UDim2.new(0, 60, 0, 60)
+MobileBtn.Position = UDim2.new(0, 20, 0.5, -30)
+MobileBtn.Visible = UserInputService.TouchEnabled
+MobileBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+
+-- Логика Лаг Свича (Без Anchored для защиты от античита)
+local function performLag()
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    
+    if hrp.Velocity.Magnitude < 1 then return end
+    
+    -- "Лаг" через остановку силы
+    local oldVel = hrp.Velocity
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    task.wait(0.5)
+    
+    -- Отталкивание
+    hrp.AssemblyLinearVelocity = (oldVel.Unit * 50) + Vector3.new(0, 70, 0)
+end
+
+-- Ввод
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if input.KeyCode == Enum.KeyCode.LeftAlt then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+    
+    if isBinding then
+        bindKey = input.KeyCode
+        BindBtn.Text = "Bind: " .. bindKey.Name
+        isBinding = false
+        return
+    end
+    
+    if not gpe and input.KeyCode == bindKey then
+        performLag()
+    end
+end)
+
+-- Выбор клавиши
+BindBtn.MouseButton1Click:Connect(function()
+    isBinding = true
+    BindBtn.Text = "Press any key..."
+end)
