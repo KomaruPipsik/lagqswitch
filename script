@@ -1,83 +1,67 @@
--- LocalScript: Ultimate Lag Switch by Pixie
+-- LocalScript: Ultimate Lag Switch v2
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
 
--- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
 local lagDuration = 1.5
 
--- СОЗДАНИЕ GUI (Сделано красиво и минималистично)
+-- GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "LagSwitchUI"
-ScreenGui.ResetOnSpawn = false
-
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 160)
 MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
-local UICorner = Instance.new("UICorner", MainFrame)
-UICorner.CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 
--- Добавление тени (UIStroke)
-local Stroke = Instance.new("UIStroke", MainFrame)
-Stroke.Color = Color3.fromRGB(45, 45, 45)
-Stroke.Thickness = 2
-
-local Title = Instance.new("TextLabel", MainFrame)
-Title.Text = "LAG SWITCH | BY PIXIE"
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(150, 150, 150)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+-- Заглушка для визуального "зависания" экрана
+local FreezeFrame = Instance.new("Frame", ScreenGui)
+FreezeFrame.Size = UDim2.new(1, 0, 1, 0)
+FreezeFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+FreezeFrame.BackgroundTransparency = 1
+FreezeFrame.Visible = true
 
 local BindBtn = Instance.new("TextButton", MainFrame)
 BindBtn.Text = "KEY: V"
 BindBtn.Size = UDim2.new(0.8, 0, 0, 45)
 BindBtn.Position = UDim2.new(0.1, 0, 0.45, 0)
-BindBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-BindBtn.AutoButtonColor = true
-Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
+BindBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+BindBtn.TextColor3 = Color3.new(1, 1, 1)
 
--- ЛОГИКА ЛАГА
 local function performLag()
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChild("Humanoid")
-    if not hrp or not hum then return end
-
-    -- ПРОВЕРКА: Игрок должен быть на земле (FloorMaterial)
-    if hum.FloorMaterial == Enum.Material.Air then return end
-    
-    -- ПРОВЕРКА: Игрок должен двигаться
-    if hrp.AssemblyLinearVelocity.Magnitude < 1 then return end
+    if not hrp then return end
 
     local originalVel = hrp.AssemblyLinearVelocity
     
-    -- САМ ЛАГ (Без задержек, мгновенно)
+    -- 1. Визуальный лаг (замораживаем экран)
+    FreezeFrame.BackgroundTransparency = 0.5 
+    
+    -- 2. Замирание (физика)
     hrp.Anchored = true
     task.wait(lagDuration)
     hrp.Anchored = false
-
-    -- ОТТАЛКИВАНИЕ (Рандомизированное)
-    local randomMultiplier = math.random(90, 140) / 100
-    local pushForce = (originalVel * 0.8) + Vector3.new(0, 60, 0)
     
-    hrp.AssemblyLinearVelocity = pushForce * randomMultiplier
+    -- 3. Убираем визуальный лаг
+    FreezeFrame.BackgroundTransparency = 1
+    
+    -- 4. Отталкивание (теперь работает и в воздухе)
+    -- Добавляем рандом, чтобы каждый раз было по-разному
+    local randomFactor = Vector3.new(math.random(-10, 10), math.random(50, 90), math.random(-10, 10))
+    local pushForce = (originalVel * 0.9) + randomFactor
+    
+    hrp.AssemblyLinearVelocity = pushForce
 end
 
--- ВВОД
+-- Обработка ввода
 UserInputService.InputBegan:Connect(function(input, gpe)
     if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
+        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType:ToString():find("MouseButton") then
             bindKey = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
             BindBtn.Text = "KEY: " .. (input.KeyCode.Name or input.UserInputType.Name)
             isBinding = false
@@ -96,5 +80,5 @@ end)
 
 BindBtn.MouseButton1Click:Connect(function()
     isBinding = true
-    BindBtn.Text = "PRESS ANY KEY..."
+    BindBtn.Text = "PRESS KEY..."
 end)
