@@ -1,12 +1,15 @@
--- LocalScript: Ultimate Lag Switch by Pixie (Updated)
+-- LocalScript: Ultimate Lag Switch Pro by Pixie
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 1.0 -- Сокращено до 1 сек
+local lagDuration = 1.0 -- Строго 1 секунда
+local isMenuOpen = false
 
 -- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -15,58 +18,106 @@ ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 160)
-MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.Position = UDim2.new(0.5, -140, 0.45, -80)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
+MainFrame.GroupTransparency = 1 -- Для анимации появления
 MainFrame.Visible = false
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(45, 45, 45)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(60, 60, 60)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Text = "LAG SWITCH | BY PIXIE"
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(200, 200, 200)
+Title.TextColor3 = Color3.fromRGB(220, 220, 220)
 Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
 
 local BindBtn = Instance.new("TextButton", MainFrame)
 BindBtn.Text = "KEY: V"
 BindBtn.Size = UDim2.new(0.8, 0, 0, 45)
 BindBtn.Position = UDim2.new(0.1, 0, 0.45, 0)
-BindBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 BindBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
+BindBtn.Font = Enum.Font.GothamMedium
+BindBtn.TextSize = 14
+BindBtn.AutoButtonColor = true
+Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 8)
 
 -- Мобильная кнопка
 local MobileBtn = Instance.new("TextButton", ScreenGui)
 MobileBtn.Text = "MENU"
-MobileBtn.Size = UDim2.new(0, 60, 0, 60)
-MobileBtn.Position = UDim2.new(0, 20, 0.5, -30)
+MobileBtn.Size = UDim2.new(0, 50, 0, 50)
+MobileBtn.Position = UDim2.new(0, 20, 0.5, -25)
+MobileBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MobileBtn.TextColor3 = Color3.new(1, 1, 1)
 MobileBtn.Visible = UserInputService.TouchEnabled
-MobileBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+Instance.new("UICorner", MobileBtn).CornerRadius = UDim.new(1, 0) -- Круглая кнопка
+
+-- АНИМАЦИЯ МЕНЮ
+local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local function toggleMenu()
+    isMenuOpen = not isMenuOpen
+    if isMenuOpen then
+        MainFrame.Visible = true
+        TweenService:Create(MainFrame, tweenInfo, {
+            GroupTransparency = 0,
+            Position = UDim2.new(0.5, -140, 0.5, -80)
+        }):Play()
+    else
+        local hideTween = TweenService:Create(MainFrame, tweenInfo, {
+            GroupTransparency = 1,
+            Position = UDim2.new(0.5, -140, 0.45, -80)
+        })
+        hideTween:Play()
+        hideTween.Completed:Wait()
+        if not isMenuOpen then MainFrame.Visible = false end
+    end
+end
+
+MobileBtn.MouseButton1Click:Connect(toggleMenu)
 
 -- ЛОГИКА
+local isLagging = false
+
 local function performLag()
+    if isLagging then return end
+    
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local direction = hrp.CFrame.LookVector -- Направление взгляда
+    local velocityBefore = hrp.AssemblyLinearVelocity
+    local direction = velocityBefore.Unit
     
-    -- 1. "Замирание" (останавливаем инерцию)
-    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    -- Если игрок стоял на месте, толкаем туда, куда он смотрит
+    if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
+        direction = hrp.CFrame.LookVector
+    end
     
-    task.wait(lagDuration) -- 1 секунда
+    isLagging = true
     
-    -- 2. МОЩНЫЙ ИМПУЛЬС (вперед и вверх)
-    -- Мы умножаем массу на силу, чтобы отбросить персонажа
-    local force = (direction * 500) + Vector3.new(0, 600, 0)
+    -- 1. НАСТОЯЩЕЕ ЗАМИРАНИЕ В ВОЗДУХЕ
+    hrp.Anchored = true
     
-    -- Добавляем случайность, как просил (каждый раз по-разному)
-    local randomJitter = Vector3.new(math.random(-50, 50), 0, math.random(-50, 50))
+    task.wait(lagDuration) -- Ждем 1 секунду
     
-    hrp:ApplyImpulse(force + randomJitter)
+    -- 2. РАЗБЛОКИРОВКА
+    hrp.Anchored = false
+    
+    -- ВАЖНО: Ждем 1 кадр физики, иначе движок проигнорирует рывок из-за снятия Anchored
+    RunService.Heartbeat:Wait()
+    
+    -- 3. МОЩНЫЙ РЫВОК
+    -- 150 - сила вперед, 100 - сила вверх (можешь менять эти цифры, если нужно еще сильнее)
+    local randomJitter = Vector3.new(math.random(-25, 25), math.random(-10, 20), math.random(-25, 25))
+    local massivePush = (direction * 150) + Vector3.new(0, 100, 0)
+    
+    hrp.AssemblyLinearVelocity = massivePush + randomJitter
+    
+    isLagging = false
 end
 
 -- ВВОД
@@ -81,7 +132,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 
     if input.KeyCode == Enum.KeyCode.LeftAlt then
-        MainFrame.Visible = not MainFrame.Visible
+        toggleMenu()
     end
 
     if not gpe and (input.KeyCode == bindKey or input.UserInputType == bindKey) then
