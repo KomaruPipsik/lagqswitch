@@ -1,97 +1,91 @@
--- LocalScript: Lag Switch by Pixie (All-in-one)
+-- LocalScript: Lag Switch Pro (All-in-one)
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
--- Переменные состояния
-local lang = "EN"
+-- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local isVisible = false
+local lagDuration = 1.5 -- Увеличено до 1.5 сек
 
--- Создание GUI (Создаем всё программно)
+-- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "LagSwitchUI"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 250, 0, 300)
-MainFrame.Position = UDim2.new(0.5, -125, 0.5, -150)
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Size = UDim2.new(0, 300, 0, 200)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.Visible = false
-Instance.new("UICorner", MainFrame)
-Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(60, 60, 60)
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Text = "Lag Switch | by: Pixie"
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
+Title.TextColor3 = Color3.fromRGB(200, 200, 200)
+Title.Font = Enum.Font.Code
 
 local BindBtn = Instance.new("TextButton", MainFrame)
-BindBtn.Text = "Click to set Bind"
-BindBtn.Size = UDim2.new(0.8, 0, 0, 40)
-BindBtn.Position = UDim2.new(0.1, 0, 0.3, 0)
-BindBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+BindBtn.Text = "Bind: V (Click to change)"
+BindBtn.Size = UDim2.new(0.8, 0, 0, 50)
+BindBtn.Position = UDim2.new(0.1, 0, 0.4, 0)
+BindBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 BindBtn.TextColor3 = Color3.new(1, 1, 1)
-Instance.new("UICorner", BindBtn)
+Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 8)
 
-local Hint = Instance.new("TextLabel", ScreenGui)
-Hint.Text = "Press LeftAlt to open | Mobile: use button"
-Hint.Size = UDim2.new(1, 0, 0, 30)
-Hint.Position = UDim2.new(0, 0, 0.9, 0)
-Hint.BackgroundTransparency = 1
-Hint.TextColor3 = Color3.new(1, 1, 1)
-
--- Мобильная кнопка
-local MobileBtn = Instance.new("TextButton", ScreenGui)
-MobileBtn.Text = "MENU"
-MobileBtn.Size = UDim2.new(0, 60, 0, 60)
-MobileBtn.Position = UDim2.new(0, 20, 0.5, -30)
-MobileBtn.Visible = UserInputService.TouchEnabled
-MobileBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
-
--- Логика Лаг Свича (Без Anchored для защиты от античита)
+-- ЛОГИКА
 local function performLag()
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     local hrp = char.HumanoidRootPart
     
-    if hrp.Velocity.Magnitude < 1 then return end
+    local currentVel = hrp.AssemblyLinearVelocity
+    if currentVel.Magnitude < 1 then return end
     
-    -- "Лаг" через остановку силы
-    local oldVel = hrp.Velocity
+    -- Лаг: полная остановка через физику
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    task.wait(0.5)
+    task.wait(lagDuration)
     
-    -- Отталкивание
-    hrp.AssemblyLinearVelocity = (oldVel.Unit * 50) + Vector3.new(0, 70, 0)
+    -- Рандом для разного отлета (пункт 3)
+    local randomMultiplier = math.random(80, 120) / 100 
+    
+    -- Скорость игрока влияет на полет (пункт 2)
+    local power = (currentVel.Magnitude * 1.5) * randomMultiplier
+    local direction = (currentVel.Unit + Vector3.new(0, 1.2, 0)).Unit -- Вверх и в сторону
+    
+    hrp.AssemblyLinearVelocity = direction * power
 end
 
--- Ввод
+-- ВВОД (Клавиатура и Кнопки мыши)
 UserInputService.InputBegan:Connect(function(input, gpe)
+    if isBinding then
+        -- Принимаем KeyCode или MouseButton
+        if input.UserInputType == Enum.UserInputType.Keyboard or 
+           input.UserInputType == Enum.UserInputType.MouseButton2 or
+           input.UserInputType == Enum.UserInputType.MouseButton3 then
+            bindKey = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
+            BindBtn.Text = "Bind: " .. (input.KeyCode.Name or input.UserInputType.Name)
+            isBinding = false
+        end
+        return
+    end
+
     if input.KeyCode == Enum.KeyCode.LeftAlt then
         MainFrame.Visible = not MainFrame.Visible
     end
-    
-    if isBinding then
-        bindKey = input.KeyCode
-        BindBtn.Text = "Bind: " .. bindKey.Name
-        isBinding = false
-        return
-    end
-    
-    if not gpe and input.KeyCode == bindKey then
-        performLag()
+
+    -- Проверка на активацию (учитываем и KeyCode, и MouseButton)
+    if not gpe then
+        if input.KeyCode == bindKey or input.UserInputType == bindKey then
+            performLag()
+        end
     end
 end)
 
--- Выбор клавиши
 BindBtn.MouseButton1Click:Connect(function()
     isBinding = true
-    BindBtn.Text = "Press any key..."
+    BindBtn.Text = "Press any key/mouse btn..."
 end)
