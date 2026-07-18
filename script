@@ -1,4 +1,4 @@
--- LocalScript: Ultimate Lag Switch Pro by Pixie
+-- LocalScript: Ultimate Lag Switch Pro by Pixie (TELEPORT EDITION)
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -21,7 +21,7 @@ MainFrame.Size = UDim2.new(0, 280, 0, 160)
 MainFrame.Position = UDim2.new(0.5, -140, 0.45, -80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
-MainFrame.GroupTransparency = 1 -- Для анимации появления
+MainFrame.GroupTransparency = 1 
 MainFrame.Visible = false
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(60, 60, 60)
@@ -53,7 +53,7 @@ MobileBtn.Position = UDim2.new(0, 20, 0.5, -25)
 MobileBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MobileBtn.TextColor3 = Color3.new(1, 1, 1)
 MobileBtn.Visible = UserInputService.TouchEnabled
-Instance.new("UICorner", MobileBtn).CornerRadius = UDim.new(1, 0) -- Круглая кнопка
+Instance.new("UICorner", MobileBtn).CornerRadius = UDim.new(1, 0)
 
 -- АНИМАЦИЯ МЕНЮ
 local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
@@ -78,7 +78,7 @@ end
 
 MobileBtn.MouseButton1Click:Connect(toggleMenu)
 
--- ЛОГИКА
+-- ЛОГИКА ТЕЛЕПОРТА
 local isLagging = false
 
 local function performLag()
@@ -92,30 +92,37 @@ local function performLag()
     local velocityBefore = hrp.AssemblyLinearVelocity
     local direction = velocityBefore.Unit
     
-    -- Если игрок стоял на месте, толкаем туда, куда он смотрит
+    -- Если стоим на месте, берем направление взгляда
     if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
         direction = hrp.CFrame.LookVector
     end
     
     isLagging = true
     
-    -- 1. НАСТОЯЩЕЕ ЗАМИРАНИЕ В ВОЗДУХЕ
+    -- 1. ПОЛНАЯ ОСТАНОВКА И ЗАМОРОЗКА
+    -- Сначала обнуляем скорость, чтобы движок не пытался двигать нас во время Anchored
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     hrp.Anchored = true
     
-    task.wait(lagDuration) -- Ждем 1 секунду
+    -- 2. ЛАГ 1 СЕКУНДА
+    task.wait(lagDuration)
     
-    -- 2. РАЗБЛОКИРОВКА
+    -- 3. ТЕЛЕПОРТ (Сдвиг координат, а не физический толчок)
+    -- Рандомный сдвиг, чтобы всегда было по-разному
+    local randomOffset = Vector3.new(math.random(-5, 5), math.random(0, 8), math.random(-5, 5))
+    
+    -- Летим ВПЕРЕД на 35 стадов и ВВЕРХ на 25 стадов
+    local teleportTargetPos = hrp.Position + (direction * 35) + Vector3.new(0, 25, 0) + randomOffset
+    
+    -- Мгновенно меняем CFrame (Телепортация)
+    hrp.CFrame = CFrame.new(teleportTargetPos, teleportTargetPos + direction)
+    
+    -- 4. РАЗБЛОКИРОВКА
     hrp.Anchored = false
     
-    -- ВАЖНО: Ждем 1 кадр физики, иначе движок проигнорирует рывок из-за снятия Anchored
-    RunService.Heartbeat:Wait()
-    
-    -- 3. МОЩНЫЙ РЫВОК
-    -- 150 - сила вперед, 100 - сила вверх (можешь менять эти цифры, если нужно еще сильнее)
-    local randomJitter = Vector3.new(math.random(-25, 25), math.random(-10, 20), math.random(-25, 25))
-    local massivePush = (direction * 150) + Vector3.new(0, 100, 0)
-    
-    hrp.AssemblyLinearVelocity = massivePush + randomJitter
+    -- Чтобы после телепорта ты не падал камнем вниз, а красиво летел дальше:
+    hrp.AssemblyLinearVelocity = (direction * 60) + Vector3.new(0, 30, 0)
     
     isLagging = false
 end
