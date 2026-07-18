@@ -1,4 +1,4 @@
--- LocalScript: Ultimate Lag Switch by Pixie (Dynamic Velocity Edition)
+-- LocalScript: Ultimate Lag Switch by Pixie (Anti-Fall Edition)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -6,7 +6,8 @@ local player = Players.LocalPlayer
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 0.4 -- Сокращено до 0.4 сек
+local lagDuration = 0.4
+local originalGravity = workspace.Gravity
 
 -- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -47,43 +48,38 @@ local function performLag()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Запоминаем скорость ДО лага
     local velocityBefore = hrp.AssemblyLinearVelocity
     local speed = velocityBefore.Magnitude
     local direction = velocityBefore.Unit
     
     if speed < 1 or direction.Magnitude ~= direction.Magnitude then
         direction = hrp.CFrame.LookVector
-        speed = 20 -- Базовая скорость
+        speed = 20
     end
     
     isLagging = true
     
-    -- Заморозка
+    -- 1. Заморозка и отключение гравитации
+    workspace.Gravity = 0
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     hrp.Anchored = true
     
-    task.wait(lagDuration) -- 0.4 сек
+    task.wait(lagDuration)
     
-    -- Телепорт
-    local distanceForward = 10 
-    local distanceUp = 20
-    local targetPos = hrp.Position + (direction * distanceForward) + Vector3.new(0, distanceUp, 0)
-    
+    -- 2. Телепорт
+    local targetPos = hrp.Position + (direction * 10) + Vector3.new(0, 20, 0)
     hrp.CFrame = CFrame.new(targetPos, targetPos + direction)
     
     hrp.Anchored = false
     
-    -- ДИНАМИЧЕСКИЙ ПОДЛЕТ:
-    -- Чем выше speed, тем сильнее множитель (от 1.0 до 3.0)
+    -- 3. Мощный подлет без гравитации
     local boostMultiplier = math.clamp(speed / 50, 1.0, 3.0)
+    hrp.AssemblyLinearVelocity = (direction * (80 * boostMultiplier)) + Vector3.new(0, (50 * boostMultiplier), 0)
     
-    -- Импульс: кидает вперед и ВВЕРХ с учетом скорости
-    -- 80 вперед и 50 вверх — база, умноженная на скорость
-    local launchForce = (direction * (80 * boostMultiplier)) + Vector3.new(0, (50 * boostMultiplier), 0)
-    
-    hrp.AssemblyLinearVelocity = launchForce
+    -- 4. Плавное возвращение гравитации через 0.8 сек (чтобы ты успел пролететь)
+    task.delay(0.8, function()
+        workspace.Gravity = originalGravity
+    end)
     
     isLagging = false
 end
