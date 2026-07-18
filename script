@@ -1,8 +1,8 @@
 -- Службы Roblox
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 -- Переменные игрока и персонажа
 local player = Players.LocalPlayer
@@ -10,87 +10,119 @@ local character = script.Parent
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Состояние контроллера
+-- Состояние контроллера и конфигурация
 local StateController = {
 	isLagging = false,
-	freezeDuration = 1, -- Задержка ровно в 1 секунду для стабилизации
+	menuOpen = false,
+	
+	-- Физические параметры скачка
+	freezeDuration = 1, -- Ровно 1 секунда для стабилизации
 	cooldown = 3,
+	upwardShift = 15, -- Смещение вверх для предотвращения коллизий
+	forwardShift = 25, -- Смещение прямо
+	jitterIntensity = 30, -- Интенсивность рандомизации вектора
 	
-	-- Настройки вектора скачка (вверх и прямо, чтобы избежать коллизий)
-	upwardShift = 15,
-	forwardShift = 25,
-	
-	-- Настройки рандомизации (Jitter)
-	jitterIntensity = 30,
-	
-	-- Бинды клавиш (поддержка клавиатуры и мыши)
+	-- Бинды клавиш
 	keybinds = {
-		Keyboard = Enum.KeyCode.Q,
-		Mouse = Enum.UserInputType.MouseButton3 -- Нажатие на колесико
+		MenuToggle = Enum.KeyCode.LeftAlt, -- Открывает меню конфигурации
+		VaultKey = Enum.KeyCode.Q,         -- Триггер самого скачка
+		VaultMouse = Enum.UserInputType.MouseButton3
 	}
 }
 
 -----------------------------------
--- UI МЕНЮ (CanvasGroup)
+-- ПОСТРОЕНИЕ 2D FLAT UI
 -----------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "PredictiveVaultUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Используем прозрачный CanvasGroup для темной темы без глухого черного фона
-local canvasGroup = Instance.new("CanvasGroup")
-canvasGroup.Name = "VaultHUD"
-canvasGroup.Size = UDim2.new(0, 160, 0, 50)
-canvasGroup.Position = UDim2.new(0.5, -80, 1, -120) -- Внизу по центру
-canvasGroup.BackgroundColor3 = Color3.fromRGB(35, 35, 40) -- Темно-серая стилистика
-canvasGroup.GroupTransparency = 1 -- Начальное состояние (скрыто)
-canvasGroup.BackgroundTransparency = 0.2
-canvasGroup.UICorner = Instance.new("UICorner", canvasGroup)
-canvasGroup.UICorner.CornerRadius = UDim.new(0, 8)
-canvasGroup.Parent = screenGui
+-- 1. Меню Конфигурации (CanvasGroup)
+local configMenu = Instance.new("CanvasGroup")
+configMenu.Name = "ConfigMenu"
+configMenu.Size = UDim2.new(0, 240, 0, 160)
+configMenu.Position = UDim2.new(0.05, 0, 0.5, -80) -- Сбоку, чтобы не перекрывать центр
+configMenu.BackgroundColor3 = Color3.fromRGB(20, 20, 25) -- Темная 2D стилистика
+configMenu.BorderSizePixel = 0 -- Без 3D рамок
+configMenu.GroupTransparency = 1
+configMenu.Visible = false
+configMenu.Parent = screenGui
 
-local uiStroke = Instance.new("UIStroke", canvasGroup)
-uiStroke.Color = Color3.fromRGB(100, 100, 255)
-uiStroke.Thickness = 1.5
-uiStroke.Transparency = 0.5
+local configTitle = Instance.new("TextLabel")
+configTitle.Size = UDim2.new(1, 0, 0, 30)
+configTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+configTitle.BorderSizePixel = 0
+configTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+configTitle.Font = Enum.Font.Code
+configTitle.TextSize = 14
+configTitle.Text = "VAULT CONFIG"
+configTitle.Parent = configMenu
+
+local configInfo = Instance.new("TextLabel")
+configInfo.Size = UDim2.new(1, -20, 1, -40)
+configInfo.Position = UDim2.new(0, 10, 0, 35)
+configInfo.BackgroundTransparency = 1
+configInfo.TextColor3 = Color3.fromRGB(200, 200, 200)
+configInfo.Font = Enum.Font.Code
+configInfo.TextSize = 12
+configInfo.TextXAlignment = Enum.TextXAlignment.Left
+configInfo.TextYAlignment = Enum.TextYAlignment.Top
+configInfo.Text = string.format(
+	"> Freeze: %s sec\n> Upward: %s st\n> Forward: %s st\n> Jitter: %s\n> Bind: Q / MB3", 
+	StateController.freezeDuration, 
+	StateController.upwardShift, 
+	StateController.forwardShift,
+	StateController.jitterIntensity
+)
+configInfo.Parent = configMenu
+
+-- 2. HUD Статуса (CanvasGroup)
+local hudGroup = Instance.new("CanvasGroup")
+hudGroup.Name = "VaultHUD"
+hudGroup.Size = UDim2.new(0, 140, 0, 30)
+hudGroup.Position = UDim2.new(0.5, -70, 1, -80)
+hudGroup.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+hudGroup.BorderSizePixel = 0
+hudGroup.GroupTransparency = 0
+hudGroup.Parent = screenGui
 
 local statusText = Instance.new("TextLabel")
 statusText.Size = UDim2.new(1, 0, 1, 0)
 statusText.BackgroundTransparency = 1
-statusText.TextColor3 = Color3.fromRGB(240, 240, 240)
-statusText.Font = Enum.Font.GothamBold
-statusText.TextSize = 16
-statusText.Text = "VAULT READY"
-statusText.Parent = canvasGroup
+statusText.TextColor3 = Color3.fromRGB(0, 255, 150)
+statusText.Font = Enum.Font.Code
+statusText.TextSize = 14
+statusText.Text = "READY"
+statusText.Parent = hudGroup
 
--- Мобильная кнопка-триггер (видна только на устройствах с тачскрином)
-local mobileButton = Instance.new("TextButton")
-mobileButton.Size = UDim2.new(0, 80, 0, 80)
-mobileButton.Position = UDim2.new(1, -100, 1, -100)
-mobileButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-mobileButton.BackgroundTransparency = 0.3
-mobileButton.Text = "JOLT"
-mobileButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-mobileButton.Font = Enum.Font.GothamBold
-mobileButton.TextSize = 18
-mobileButton.Visible = UserInputService.TouchEnabled
-local mobileCorner = Instance.new("UICorner", mobileButton)
-mobileCorner.CornerRadius = UDim.new(1, 0) -- Круглая кнопка
-mobileButton.Parent = screenGui
+-- Анимации TweenService
+local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
--- Анимация появления UI
-local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
-local fadeIn = TweenService:Create(canvasGroup, tweenInfo, {GroupTransparency = 0})
-fadeIn:Play()
+local function toggleMenu()
+	StateController.menuOpen = not StateController.menuOpen
+	
+	if StateController.menuOpen then
+		configMenu.Visible = true
+		local tween = TweenService:Create(configMenu, tweenInfo, {GroupTransparency = 0})
+		tween:Play()
+	else
+		local tween = TweenService:Create(configMenu, tweenInfo, {GroupTransparency = 1})
+		tween:Play()
+		tween.Completed:Connect(function()
+			if not StateController.menuOpen then
+				configMenu.Visible = false
+			end
+		end)
+	end
+end
 
 -----------------------------------
 -- ЛОГИКА ФИЗИКИ И СОСТОЯНИЯ
 -----------------------------------
 
--- Функция заморозки позиции без использования Anchored (избегаем rubberbanding)
+-- Фиксация позиции без Anchored
 local function freezePhysics()
-	-- Создаем Attachment и LinearVelocity для идеальной фиксации в воздухе
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "VaultAttachment"
 	attachment.Parent = rootPart
@@ -98,8 +130,8 @@ local function freezePhysics()
 	local linearVelocity = Instance.new("LinearVelocity")
 	linearVelocity.Name = "VaultVelocity"
 	linearVelocity.Attachment0 = attachment
-	linearVelocity.MaxForce = math.huge -- Бесконечная сила для удержания на месте
-	linearVelocity.VectorVelocity = Vector3.new(0, 0, 0) -- Обнуляем скорость
+	linearVelocity.MaxForce = math.huge
+	linearVelocity.VectorVelocity = Vector3.new(0, 0, 0)
 	linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
 	linearVelocity.Parent = rootPart
 	
@@ -107,87 +139,77 @@ local function freezePhysics()
 end
 
 local function executeVault()
-	-- Защита от наложения команд (stacking) во время лага
+	-- Блокировка наложения команд
 	if StateController.isLagging then return end
 	StateController.isLagging = true
 	
 	-- Обновление UI
-	statusText.Text = "OVERRIDING..."
+	statusText.Text = "OVERRIDING"
 	statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
-	uiStroke.Color = Color3.fromRGB(255, 50, 50)
 	
 	-- 1. Заморозка вектора скорости
 	local linVel, attachment = freezePhysics()
 	
-	-- 2. Ждем ровно 1 секунду для стабилизации сетевого предикта
+	-- 2. Задержка ровно на 1 секунду
 	task.wait(StateController.freezeDuration)
 	
-	-- Очищаем заморозку
+	-- Очистка заморозки
 	linVel:Destroy()
 	attachment:Destroy()
 	
-	-- 3. CFrame Shift (Предиктивный скачок вверх и прямо)
-	-- Берем текущий LookVector (направление взгляда)
+	-- 3. Предиктивный скачок (вверх и прямо)
 	local lookVector = rootPart.CFrame.LookVector
-	
-	-- Смещаем позицию принудительно (CFrame.new)
 	local targetPosition = rootPart.CFrame.Position 
 		+ Vector3.new(0, StateController.upwardShift, 0) 
 		+ (lookVector * StateController.forwardShift)
 	
-	-- Сохраняем ориентацию (вращение), меняем только позицию
 	rootPart.CFrame = CFrame.new(targetPosition) * rootPart.CFrame.Rotation
 	
 	-- 4. Восстановление импульса с рандомизацией (Jitter)
-	-- Математическая рандомизация скорости усложняет предугадывание траектории
 	local randomX = math.random(-StateController.jitterIntensity, StateController.jitterIntensity)
-	local randomY = math.random(0, StateController.jitterIntensity) -- Подбрасываем немного вверх
+	local randomY = math.random(10, StateController.jitterIntensity)
 	local randomZ = math.random(-StateController.jitterIntensity, StateController.jitterIntensity)
 	
 	local jitterVector = Vector3.new(randomX, randomY, randomZ)
-	local baseMomentum = lookVector * 50 -- Базовый импульс вперед
+	local baseMomentum = lookVector * 40
 	
 	rootPart.AssemblyLinearVelocity = baseMomentum + jitterVector
 	
-	-- Запуск кулдауна
+	-- Кулдаун
 	statusText.Text = "COOLDOWN"
-	statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
-	uiStroke.Color = Color3.fromRGB(100, 100, 100)
+	statusText.TextColor3 = Color3.fromRGB(100, 100, 100)
 	
 	task.wait(StateController.cooldown)
 	
-	-- Восстановление состояния
+	-- Восстановление
 	StateController.isLagging = false
-	statusText.Text = "VAULT READY"
-	statusText.TextColor3 = Color3.fromRGB(240, 240, 240)
-	uiStroke.Color = Color3.fromRGB(100, 100, 255)
+	statusText.Text = "READY"
+	statusText.TextColor3 = Color3.fromRGB(0, 255, 150)
 end
 
 -----------------------------------
--- ОБРАБОТКА ВВОДА (Input Abstraction)
+-- ОБРАБОТКА ВВОДА
 -----------------------------------
 local function handleInput(input, gameProcessedEvent)
-	if gameProcessedEvent then return end
+	-- Проверяем, сфокусирован ли игрок на чате. Игнорируем gameProcessedEvent для LeftAlt.
+	if UserInputService:GetFocusedTextBox() then return end
 	
-	-- Проверка клавиатуры
 	if input.UserInputType == Enum.UserInputType.Keyboard then
-		if input.KeyCode == StateController.keybinds.Keyboard then
+		if input.KeyCode == StateController.keybinds.MenuToggle then
+			toggleMenu()
+		elseif input.KeyCode == StateController.keybinds.VaultKey then
 			executeVault()
 		end
-	-- Проверка мыши
-	elseif input.UserInputType == StateController.keybinds.Mouse then
-		executeVault()
+	elseif input.UserInputType == StateController.keybinds.VaultMouse then
+		if not gameProcessedEvent then
+			executeVault()
+		end
 	end
 end
 
--- Привязка событий
 UserInputService.InputBegan:Connect(handleInput)
-mobileButton.MouseButton1Click:Connect(executeVault)
 
--- Очистка UI при смерти/респавне, если скрипт в StarterCharacterScripts
+-- Очистка интерфейса
 humanoid.Died:Connect(function()
-	local fadeOut = TweenService:Create(canvasGroup, tweenInfo, {GroupTransparency = 1})
-	fadeOut:Play()
-	task.wait(0.5)
 	screenGui:Destroy()
 end)
