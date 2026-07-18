@@ -1,129 +1,83 @@
--- LocalScript: Ultimate Lag Switch Pro by Pixie (FIXED)
+-- LocalScript: Ultimate Lag Switch by Pixie
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
+local mouse = player:GetMouse()
 
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 1.0 -- Строго 1 секунда
-local isMenuOpen = false
+local lagDuration = 1.5
 
--- СОЗДАНИЕ GUI
+-- СОЗДАНИЕ GUI (Сделано красиво и минималистично)
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "LagSwitchUI"
 ScreenGui.ResetOnSpawn = false
 
--- ИСправлено: CanvasGroup вместо Frame, чтобы работала прозрачность
-local MainFrame = Instance.new("CanvasGroup", ScreenGui)
+local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 160)
-MainFrame.Position = UDim2.new(0.5, -140, 0.45, -80)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BorderSizePixel = 0
-MainFrame.GroupTransparency = 1 
 MainFrame.Visible = false
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
-Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(60, 60, 60)
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 8)
+
+-- Добавление тени (UIStroke)
+local Stroke = Instance.new("UIStroke", MainFrame)
+Stroke.Color = Color3.fromRGB(45, 45, 45)
+Stroke.Thickness = 2
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Text = "LAG SWITCH | BY PIXIE"
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(220, 220, 220)
+Title.TextColor3 = Color3.fromRGB(150, 150, 150)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
+Title.TextSize = 14
 
 local BindBtn = Instance.new("TextButton", MainFrame)
 BindBtn.Text = "KEY: V"
 BindBtn.Size = UDim2.new(0.8, 0, 0, 45)
 BindBtn.Position = UDim2.new(0.1, 0, 0.45, 0)
-BindBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-BindBtn.TextColor3 = Color3.new(1, 1, 1)
-BindBtn.Font = Enum.Font.GothamMedium
-BindBtn.TextSize = 14
+BindBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 BindBtn.AutoButtonColor = true
-Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
 
--- Мобильная кнопка
-local MobileBtn = Instance.new("TextButton", ScreenGui)
-MobileBtn.Text = "MENU"
-MobileBtn.Size = UDim2.new(0, 50, 0, 50)
-MobileBtn.Position = UDim2.new(0, 20, 0.5, -25)
-MobileBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MobileBtn.TextColor3 = Color3.new(1, 1, 1)
-MobileBtn.Visible = UserInputService.TouchEnabled
-Instance.new("UICorner", MobileBtn).CornerRadius = UDim.new(1, 0)
-
--- АНИМАЦИЯ МЕНЮ
-local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-local function toggleMenu()
-    isMenuOpen = not isMenuOpen
-    if isMenuOpen then
-        MainFrame.Visible = true
-        TweenService:Create(MainFrame, tweenInfo, {
-            GroupTransparency = 0,
-            Position = UDim2.new(0.5, -140, 0.5, -80)
-        }):Play()
-    else
-        local hideTween = TweenService:Create(MainFrame, tweenInfo, {
-            GroupTransparency = 1,
-            Position = UDim2.new(0.5, -140, 0.45, -80)
-        })
-        hideTween:Play()
-        hideTween.Completed:Wait()
-        if not isMenuOpen then MainFrame.Visible = false end
-    end
-end
-
-MobileBtn.MouseButton1Click:Connect(toggleMenu)
-
--- ЛОГИКА ТЕЛЕПОРТА
-local isLagging = false
-
+-- ЛОГИКА ЛАГА
 local function performLag()
-    if isLagging then return end
-    
     local char = player.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if not hrp or not hum then return end
 
-    local velocityBefore = hrp.AssemblyLinearVelocity
-    local direction = velocityBefore.Unit
+    -- ПРОВЕРКА: Игрок должен быть на земле (FloorMaterial)
+    if hum.FloorMaterial == Enum.Material.Air then return end
     
-    if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
-        direction = hrp.CFrame.LookVector
-    end
+    -- ПРОВЕРКА: Игрок должен двигаться
+    if hrp.AssemblyLinearVelocity.Magnitude < 1 then return end
+
+    local originalVel = hrp.AssemblyLinearVelocity
     
-    isLagging = true
-    
-    -- 1. ПОЛНАЯ ОСТАНОВКА И ЗАМОРОЗКА
-    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    -- САМ ЛАГ (Без задержек, мгновенно)
     hrp.Anchored = true
-    
-    -- 2. ЛАГ 1 СЕКУНДА
     task.wait(lagDuration)
-    
-    -- 3. ТЕЛЕПОРТ
-    local randomOffset = Vector3.new(math.random(-5, 5), math.random(0, 8), math.random(-5, 5))
-    local teleportTargetPos = hrp.Position + (direction * 35) + Vector3.new(0, 25, 0) + randomOffset
-    
-    hrp.CFrame = CFrame.new(teleportTargetPos, teleportTargetPos + direction)
-    
-    -- 4. РАЗБЛОКИРОВКА
     hrp.Anchored = false
-    hrp.AssemblyLinearVelocity = (direction * 60) + Vector3.new(0, 30, 0)
+
+    -- ОТТАЛКИВАНИЕ (Рандомизированное)
+    local randomMultiplier = math.random(90, 140) / 100
+    local pushForce = (originalVel * 0.8) + Vector3.new(0, 60, 0)
     
-    isLagging = false
+    hrp.AssemblyLinearVelocity = pushForce * randomMultiplier
 end
 
 -- ВВОД
 UserInputService.InputBegan:Connect(function(input, gpe)
     if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType:ToString():find("MouseButton") then
+        if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.MouseButton3 then
             bindKey = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
             BindBtn.Text = "KEY: " .. (input.KeyCode.Name or input.UserInputType.Name)
             isBinding = false
@@ -132,7 +86,7 @@ UserInputService.InputBegan:Connect(function(input, gpe)
     end
 
     if input.KeyCode == Enum.KeyCode.LeftAlt then
-        toggleMenu()
+        MainFrame.Visible = not MainFrame.Visible
     end
 
     if not gpe and (input.KeyCode == bindKey or input.UserInputType == bindKey) then
@@ -142,5 +96,5 @@ end)
 
 BindBtn.MouseButton1Click:Connect(function()
     isBinding = true
-    BindBtn.Text = "PRESS KEY..."
+    BindBtn.Text = "PRESS ANY KEY..."
 end)
