@@ -1,102 +1,193 @@
--- LocalScript: Ultimate Lag Switch by Pixie
-local UserInputService = game:GetService("UserInputService")
+-- Службы Roblox
 local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+-- Переменные игрока и персонажа
 local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+local character = script.Parent
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- Настройки
-local bindKey = Enum.KeyCode.V
-local isBinding = false
-local lagDuration = 1.5
+-- Состояние контроллера
+local StateController = {
+	isLagging = false,
+	freezeDuration = 1, -- Задержка ровно в 1 секунду для стабилизации
+	cooldown = 3,
+	
+	-- Настройки вектора скачка (вверх и прямо, чтобы избежать коллизий)
+	upwardShift = 15,
+	forwardShift = 25,
+	
+	-- Настройки рандомизации (Jitter)
+	jitterIntensity = 30,
+	
+	-- Бинды клавиш (поддержка клавиатуры и мыши)
+	keybinds = {
+		Keyboard = Enum.KeyCode.Q,
+		Mouse = Enum.UserInputType.MouseButton3 -- Нажатие на колесико
+	}
+}
 
--- СОЗДАНИЕ GUI
-local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "LagSwitchUI"
-ScreenGui.ResetOnSpawn = false
+-----------------------------------
+-- UI МЕНЮ (CanvasGroup)
+-----------------------------------
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PredictiveVaultUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
 
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 280, 0, 160)
-MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BorderSizePixel = 0
-MainFrame.Visible = false
+-- Используем прозрачный CanvasGroup для темной темы без глухого черного фона
+local canvasGroup = Instance.new("CanvasGroup")
+canvasGroup.Name = "VaultHUD"
+canvasGroup.Size = UDim2.new(0, 160, 0, 50)
+canvasGroup.Position = UDim2.new(0.5, -80, 1, -120) -- Внизу по центру
+canvasGroup.BackgroundColor3 = Color3.fromRGB(35, 35, 40) -- Темно-серая стилистика
+canvasGroup.GroupTransparency = 1 -- Начальное состояние (скрыто)
+canvasGroup.BackgroundTransparency = 0.2
+canvasGroup.UICorner = Instance.new("UICorner", canvasGroup)
+canvasGroup.UICorner.CornerRadius = UDim.new(0, 8)
+canvasGroup.Parent = screenGui
 
-local UICorner = Instance.new("UICorner", MainFrame)
-UICorner.CornerRadius = UDim.new(0, 8)
+local uiStroke = Instance.new("UIStroke", canvasGroup)
+uiStroke.Color = Color3.fromRGB(100, 100, 255)
+uiStroke.Thickness = 1.5
+uiStroke.Transparency = 0.5
 
-local Stroke = Instance.new("UIStroke", MainFrame)
-Stroke.Color = Color3.fromRGB(45, 45, 45)
-Stroke.Thickness = 2
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, 0, 1, 0)
+statusText.BackgroundTransparency = 1
+statusText.TextColor3 = Color3.fromRGB(240, 240, 240)
+statusText.Font = Enum.Font.GothamBold
+statusText.TextSize = 16
+statusText.Text = "VAULT READY"
+statusText.Parent = canvasGroup
 
-local Title = Instance.new("TextLabel", MainFrame)
-Title.Text = "LAG SWITCH | BY PIXIE"
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(150, 150, 150)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+-- Мобильная кнопка-триггер (видна только на устройствах с тачскрином)
+local mobileButton = Instance.new("TextButton")
+mobileButton.Size = UDim2.new(0, 80, 0, 80)
+mobileButton.Position = UDim2.new(1, -100, 1, -100)
+mobileButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+mobileButton.BackgroundTransparency = 0.3
+mobileButton.Text = "JOLT"
+mobileButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+mobileButton.Font = Enum.Font.GothamBold
+mobileButton.TextSize = 18
+mobileButton.Visible = UserInputService.TouchEnabled
+local mobileCorner = Instance.new("UICorner", mobileButton)
+mobileCorner.CornerRadius = UDim.new(1, 0) -- Круглая кнопка
+mobileButton.Parent = screenGui
 
-local BindBtn = Instance.new("TextButton", MainFrame)
-BindBtn.Text = "KEY: V"
-BindBtn.Size = UDim2.new(0.8, 0, 0, 45)
-BindBtn.Position = UDim2.new(0.1, 0, 0.45, 0)
-BindBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-BindBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-BindBtn.AutoButtonColor = true
-Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
+-- Анимация появления UI
+local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
+local fadeIn = TweenService:Create(canvasGroup, tweenInfo, {GroupTransparency = 0})
+fadeIn:Play()
 
--- ЛОГИКА ЛАГА
-local function performLag()
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local hum = char:FindFirstChild("Humanoid")
-    if not hrp or not hum then return end
+-----------------------------------
+-- ЛОГИКА ФИЗИКИ И СОСТОЯНИЯ
+-----------------------------------
 
-    -- Убрана проверка на землю — работает и в воздухе
-    -- Убрана проверка на движение — работает стоя
+-- Функция заморозки позиции без использования Anchored (избегаем rubberbanding)
+local function freezePhysics()
+	-- Создаем Attachment и LinearVelocity для идеальной фиксации в воздухе
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "VaultAttachment"
+	attachment.Parent = rootPart
 
-    local originalVel = hrp.AssemblyLinearVelocity
-
-    -- Телепортируем вверх и вперёд перед заморозкой
-    local lookDir = hrp.CFrame.LookVector
-    hrp.CFrame = hrp.CFrame + Vector3.new(0, 8, 0) + lookDir * 5
-
-    -- Замораживаем
-    hrp.Anchored = true
-    task.wait(lagDuration)
-    hrp.Anchored = false
-
-    -- Отталкивание вверх и вперёд
-    local randomMultiplier = math.random(90, 140) / 100
-    local pushForce = (lookDir * 40) + Vector3.new(0, 50, 0)
-    hrp.AssemblyLinearVelocity = pushForce * randomMultiplier
+	local linearVelocity = Instance.new("LinearVelocity")
+	linearVelocity.Name = "VaultVelocity"
+	linearVelocity.Attachment0 = attachment
+	linearVelocity.MaxForce = math.huge -- Бесконечная сила для удержания на месте
+	linearVelocity.VectorVelocity = Vector3.new(0, 0, 0) -- Обнуляем скорость
+	linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	linearVelocity.Parent = rootPart
+	
+	return linearVelocity, attachment
 end
 
--- ВВОД
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard
-            or input.UserInputType == Enum.UserInputType.MouseButton2
-            or input.UserInputType == Enum.UserInputType.MouseButton3 then
-            bindKey = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
-            BindBtn.Text = "KEY: " .. (input.KeyCode.Name or input.UserInputType.Name)
-            isBinding = false
-        end
-        return
-    end
+local function executeVault()
+	-- Защита от наложения команд (stacking) во время лага
+	if StateController.isLagging then return end
+	StateController.isLagging = true
+	
+	-- Обновление UI
+	statusText.Text = "OVERRIDING..."
+	statusText.TextColor3 = Color3.fromRGB(255, 100, 100)
+	uiStroke.Color = Color3.fromRGB(255, 50, 50)
+	
+	-- 1. Заморозка вектора скорости
+	local linVel, attachment = freezePhysics()
+	
+	-- 2. Ждем ровно 1 секунду для стабилизации сетевого предикта
+	task.wait(StateController.freezeDuration)
+	
+	-- Очищаем заморозку
+	linVel:Destroy()
+	attachment:Destroy()
+	
+	-- 3. CFrame Shift (Предиктивный скачок вверх и прямо)
+	-- Берем текущий LookVector (направление взгляда)
+	local lookVector = rootPart.CFrame.LookVector
+	
+	-- Смещаем позицию принудительно (CFrame.new)
+	local targetPosition = rootPart.CFrame.Position 
+		+ Vector3.new(0, StateController.upwardShift, 0) 
+		+ (lookVector * StateController.forwardShift)
+	
+	-- Сохраняем ориентацию (вращение), меняем только позицию
+	rootPart.CFrame = CFrame.new(targetPosition) * rootPart.CFrame.Rotation
+	
+	-- 4. Восстановление импульса с рандомизацией (Jitter)
+	-- Математическая рандомизация скорости усложняет предугадывание траектории
+	local randomX = math.random(-StateController.jitterIntensity, StateController.jitterIntensity)
+	local randomY = math.random(0, StateController.jitterIntensity) -- Подбрасываем немного вверх
+	local randomZ = math.random(-StateController.jitterIntensity, StateController.jitterIntensity)
+	
+	local jitterVector = Vector3.new(randomX, randomY, randomZ)
+	local baseMomentum = lookVector * 50 -- Базовый импульс вперед
+	
+	rootPart.AssemblyLinearVelocity = baseMomentum + jitterVector
+	
+	-- Запуск кулдауна
+	statusText.Text = "COOLDOWN"
+	statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
+	uiStroke.Color = Color3.fromRGB(100, 100, 100)
+	
+	task.wait(StateController.cooldown)
+	
+	-- Восстановление состояния
+	StateController.isLagging = false
+	statusText.Text = "VAULT READY"
+	statusText.TextColor3 = Color3.fromRGB(240, 240, 240)
+	uiStroke.Color = Color3.fromRGB(100, 100, 255)
+end
 
-    if input.KeyCode == Enum.KeyCode.LeftAlt then
-        MainFrame.Visible = not MainFrame.Visible
-    end
+-----------------------------------
+-- ОБРАБОТКА ВВОДА (Input Abstraction)
+-----------------------------------
+local function handleInput(input, gameProcessedEvent)
+	if gameProcessedEvent then return end
+	
+	-- Проверка клавиатуры
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		if input.KeyCode == StateController.keybinds.Keyboard then
+			executeVault()
+		end
+	-- Проверка мыши
+	elseif input.UserInputType == StateController.keybinds.Mouse then
+		executeVault()
+	end
+end
 
-    if not gpe and (input.KeyCode == bindKey or input.UserInputType == bindKey) then
-        performLag()
-    end
-end)
+-- Привязка событий
+UserInputService.InputBegan:Connect(handleInput)
+mobileButton.MouseButton1Click:Connect(executeVault)
 
-BindBtn.MouseButton1Click:Connect(function()
-    isBinding = true
-    BindBtn.Text = "PRESS ANY KEY..."
+-- Очистка UI при смерти/респавне, если скрипт в StarterCharacterScripts
+humanoid.Died:Connect(function()
+	local fadeOut = TweenService:Create(canvasGroup, tweenInfo, {GroupTransparency = 1})
+	fadeOut:Play()
+	task.wait(0.5)
+	screenGui:Destroy()
 end)
