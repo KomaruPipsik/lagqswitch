@@ -1,4 +1,4 @@
--- LocalScript: Ultimate Lag Switch Pro by Pixie (TELEPORT EDITION)
+-- LocalScript: Ultimate Lag Switch Pro by Pixie (FIXED)
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -16,7 +16,8 @@ local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 ScreenGui.Name = "LagSwitchUI"
 ScreenGui.ResetOnSpawn = false
 
-local MainFrame = Instance.new("Frame", ScreenGui)
+-- ИСправлено: CanvasGroup вместо Frame, чтобы работала прозрачность
+local MainFrame = Instance.new("CanvasGroup", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 160)
 MainFrame.Position = UDim2.new(0.5, -140, 0.45, -80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
@@ -92,7 +93,6 @@ local function performLag()
     local velocityBefore = hrp.AssemblyLinearVelocity
     local direction = velocityBefore.Unit
     
-    -- Если стоим на месте, берем направление взгляда
     if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
         direction = hrp.CFrame.LookVector
     end
@@ -100,7 +100,6 @@ local function performLag()
     isLagging = true
     
     -- 1. ПОЛНАЯ ОСТАНОВКА И ЗАМОРОЗКА
-    -- Сначала обнуляем скорость, чтобы движок не пытался двигать нас во время Anchored
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     hrp.Anchored = true
@@ -108,20 +107,14 @@ local function performLag()
     -- 2. ЛАГ 1 СЕКУНДА
     task.wait(lagDuration)
     
-    -- 3. ТЕЛЕПОРТ (Сдвиг координат, а не физический толчок)
-    -- Рандомный сдвиг, чтобы всегда было по-разному
+    -- 3. ТЕЛЕПОРТ
     local randomOffset = Vector3.new(math.random(-5, 5), math.random(0, 8), math.random(-5, 5))
-    
-    -- Летим ВПЕРЕД на 35 стадов и ВВЕРХ на 25 стадов
     local teleportTargetPos = hrp.Position + (direction * 35) + Vector3.new(0, 25, 0) + randomOffset
     
-    -- Мгновенно меняем CFrame (Телепортация)
     hrp.CFrame = CFrame.new(teleportTargetPos, teleportTargetPos + direction)
     
     -- 4. РАЗБЛОКИРОВКА
     hrp.Anchored = false
-    
-    -- Чтобы после телепорта ты не падал камнем вниз, а красиво летел дальше:
     hrp.AssemblyLinearVelocity = (direction * 60) + Vector3.new(0, 30, 0)
     
     isLagging = false
