@@ -1,13 +1,12 @@
--- LocalScript: Ultimate Lag Switch by Pixie (Safe Teleport Edition)
+-- LocalScript: Ultimate Lag Switch by Pixie (Dynamic Velocity Edition)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 -- Настройки
 local bindKey = Enum.KeyCode.V
 local isBinding = false
-local lagDuration = 1.0
+local lagDuration = 0.4 -- Сокращено до 0.4 сек
 
 -- СОЗДАНИЕ GUI
 local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
@@ -18,7 +17,6 @@ local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 160)
 MainFrame.Position = UDim2.new(0.5, -140, 0.5, -80)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.BorderSizePixel = 0
 MainFrame.Visible = false
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(45, 45, 45)
@@ -38,17 +36,9 @@ BindBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 BindBtn.TextColor3 = Color3.new(1, 1, 1)
 Instance.new("UICorner", BindBtn).CornerRadius = UDim.new(0, 6)
 
--- Мобильная кнопка
-local MobileBtn = Instance.new("TextButton", ScreenGui)
-MobileBtn.Text = "MENU"
-MobileBtn.Size = UDim2.new(0, 60, 0, 60)
-MobileBtn.Position = UDim2.new(0, 20, 0.5, -30)
-MobileBtn.Visible = UserInputService.TouchEnabled
-MobileBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
-
+-- ЛОГИКА
 local isLagging = false
 
--- ЛОГИКА ТЕЛЕПОРТАЦИИ
 local function performLag()
     if isLagging then return end
     
@@ -57,52 +47,43 @@ local function performLag()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
+    -- Запоминаем скорость ДО лага
     local velocityBefore = hrp.AssemblyLinearVelocity
+    local speed = velocityBefore.Magnitude
     local direction = velocityBefore.Unit
     
-    if velocityBefore.Magnitude < 1 or direction.Magnitude ~= direction.Magnitude then
+    if speed < 1 or direction.Magnitude ~= direction.Magnitude then
         direction = hrp.CFrame.LookVector
+        speed = 20 -- Базовая скорость
     end
     
     isLagging = true
     
-    -- "Замирание"
+    -- Заморозка
     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     hrp.Anchored = true
     
-    task.wait(lagDuration)
+    task.wait(lagDuration) -- 0.4 сек
     
-    -- НАСТРОЙКА ДАЛЬНОСТИ ТЕЛЕПОРТА
-    local distanceForward = 12 -- Уменьшено (раньше было 35)
-    local distanceUp = 35      -- Увеличено (раньше было 25)
+    -- Телепорт
+    local distanceForward = 10 
+    local distanceUp = 20
+    local targetPos = hrp.Position + (direction * distanceForward) + Vector3.new(0, distanceUp, 0)
     
-    -- Высчитываем желаемую позицию
-    local intendedPos = hrp.Position + (direction * distanceForward) + Vector3.new(0, distanceUp, 0)
+    hrp.CFrame = CFrame.new(targetPos, targetPos + direction)
     
-    -- РЕЙКАСТ: Проверка на стены и потолки
-    local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {char} -- Игнорировать самого персонажа
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local rayDirection = intendedPos - hrp.Position
-    local rayResult = workspace:Raycast(hrp.Position, rayDirection, rayParams)
-    
-    local teleportTargetPos
-    if rayResult then
-        -- Если луч врезался в текстуру, телепортируемся за 2.5 стада ДО стены
-        teleportTargetPos = rayResult.Position - (rayDirection.Unit * 2.5)
-    else
-        -- Если путь свободен, телепортируемся в конечную точку
-        teleportTargetPos = intendedPos
-    end
-    
-    -- Мгновенно меняем координаты
-    hrp.CFrame = CFrame.new(teleportTargetPos, teleportTargetPos + direction)
-    
-    -- Размораживаем
     hrp.Anchored = false
-    hrp.AssemblyLinearVelocity = (direction * 30) + Vector3.new(0, 10, 0)
+    
+    -- ДИНАМИЧЕСКИЙ ПОДЛЕТ:
+    -- Чем выше speed, тем сильнее множитель (от 1.0 до 3.0)
+    local boostMultiplier = math.clamp(speed / 50, 1.0, 3.0)
+    
+    -- Импульс: кидает вперед и ВВЕРХ с учетом скорости
+    -- 80 вперед и 50 вверх — база, умноженная на скорость
+    local launchForce = (direction * (80 * boostMultiplier)) + Vector3.new(0, (50 * boostMultiplier), 0)
+    
+    hrp.AssemblyLinearVelocity = launchForce
     
     isLagging = false
 end
